@@ -253,3 +253,66 @@ chord = np.sum([wave1, wave2, wave3], axis=0) // 3
 - **mediapipe-tasks** v0.10+ supports Python 3.10–3.12 ✅
 - **pygame** 2.5+ supports Python 3.11–3.12 ✅
 - **opencv-python** 4.8+ supports Python 3.11–3.12 ✅
+
+---
+
+## Late-Breaking Findings (Background Agent Completion)
+
+### Key Correction: Index Finger Tracking Available
+
+**Previous assumption (invalidated)**: MediaPipe Pose does NOT include finger keypoints.
+**Actual finding**: MediaPipe Pose Landmarker DOES track index finger tips:
+
+| Keypoint | Index | Role in Game |
+|----------|-------|-------------|
+| LEFT_INDEX | 19 | Left index finger tip (user's "食指") |
+| RIGHT_INDEX | 20 | Right index finger tip |
+| LEFT_WRIST | 15 | Primary swipe detection point |
+| RIGHT_WRIST | 16 | Primary swipe detection point |
+
+The user's specification mentions "手腕/食指关键点" (wrist/index finger keypoints).
+Both are available from the same single Pose model — no separate Hands model needed 🎯
+
+**Implementation implication**: For the "hand blade" velocity calculation, use wrist
+(idx 15/16) as the primary tracking point (more stable), and index finger (idx 19/20)
+for fine-grained direction vector refinement. This gives more accurate swipe detection
+without adding the ~10MB MediaPipe Hands model.
+
+### Running Mode Decision
+
+**Recommendation**: Use `RunningMode.VIDEO` with `detect_for_video()` — NOT LIVE_STREAM.
+
+| Mode | Behavior | Why We Chose VIDEO |
+|------|----------|-------------------|
+| `LIVE_STREAM` | Async callback, may drop frames | Frame drops are unacceptable — we need deterministic 30Hz |
+| `VIDEO` | Synchronous, guaranteed output per input | In our dedicated pose thread, synchronous blocking is fine |
+
+```python
+# Correct pattern for our architecture (dedicated pose thread):
+options = vision.PoseLandmarkerOptions(
+    base_options=python.BaseOptions(model_asset_path='models/pose_landmarker_lite.task'),
+    running_mode=vision.RunningMode.VIDEO,  # ← Synchronous, guaranteed output
+    num_poses=1,
+    min_pose_detection_confidence=0.5,
+    min_pose_presence_confidence=0.5,
+    min_tracking_confidence=0.5,
+)
+```
+
+### Performance: Lite Model on CPU (Confirmed)
+
+| Metric | Value |
+|--------|-------|
+| CPU latency (desktop) | ~20-25ms per frame |
+| Effective FPS (single thread) | 40-50 FPS |
+| Input resolution | 256×256 (model) from 640×480 (camera) |
+| First inference cold-start | 2-5× normal — warm up with 5-10 dummy frames |
+
+### Landmark Coordinate System
+
+- `x`, `y`: Normalized [0.0, 1.0] relative to image dimensions
+- `z`: Depth offset from hip midpoint (smaller = closer to camera)
+- `visibility`: [0.0, 1.0] — values below ~0.5 indicate occlusion/unreliable
+- **"Left/Right" is the person's perspective** — left wrist (idx 15) is the
+  person's actual left arm. In a mirrored webcam view, this appears on the
+  right side of the display.
