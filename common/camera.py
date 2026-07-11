@@ -65,9 +65,8 @@ class Camera:
         self.open()
         return self
 
-    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> bool:
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         self.release()
-        return False
 
     @property
     def is_opened(self) -> bool:

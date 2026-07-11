@@ -22,6 +22,8 @@ class ConductorGestureClassifier:
         pose: np.ndarray,
         current_time: float,
         dt: float,
+        width: int = 1280,
+        height: int = 720,
     ) -> Optional[GestureEvent]:
         """Classify gesture from 33×3 landmarks array. Returns None if no gesture."""
         wrist_l = pose[15]
@@ -50,8 +52,8 @@ class ConductorGestureClassifier:
         arm_span = self._calibration.arm_span
         if arm_span > 0:
             wrist_distance = abs(wrist_l[0] - wrist_r[0])
-            left_angle = joint_angle(pose, 11, 13, 15)
-            right_angle = joint_angle(pose, 12, 14, 16)
+            left_angle = joint_angle(pose, 11, 13, 15, width, height)
+            right_angle = joint_angle(pose, 12, 14, 16, width, height)
             arms_out = (left_angle > 120.0) and (right_angle > 120.0) and (wrist_distance > arm_span * 0.75)
 
             if arms_out:

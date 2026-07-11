@@ -41,7 +41,7 @@ class MainMenu:
 
         clock = pygame.time.Clock()
         running = True
-        result = self.FRUIT_SLICING
+        result: Optional[str] = self.FRUIT_SLICING
 
         while running:
             for event in pygame.event.get():
@@ -65,7 +65,7 @@ class MainMenu:
             self._render(screen)
             clock.tick(30)
 
-        return result
+        return result if result is not None else self.QUIT
 
     def _terminal_menu(self) -> str:
         """Fallback terminal-based menu when no pygame screen."""

@@ -114,7 +114,7 @@ class ConductorGame:
                 pose = pose_thread.get_pose()
                 gesture = None
                 if pose is not None and gesture_classifier is not None:
-                    gesture = gesture_classifier.classify(pose.landmarks, now, dt)
+                    gesture = gesture_classifier.classify(pose.landmarks, now, dt, w, h)
 
                 if gesture is not None:
                     detected_gesture = gesture.type.value if hasattr(gesture.type, 'value') else str(gesture.type)

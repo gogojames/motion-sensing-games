@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Optional
+from typing import Any, Optional
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,6 +78,9 @@ def _run_game_loop(camera: Any, settings: Any) -> None:
     pose_thread.start(camera, detector)
 
     try:
+        from common.scores import ScoreManager  # noqa: PLC0415
+        from common.menu import MainMenu  # noqa: PLC0415
+
         scores = ScoreManager()
         menu = MainMenu(scores)
 
@@ -88,7 +91,7 @@ def _run_game_loop(camera: Any, settings: Any) -> None:
             elif mode == "fruit_slicing":
                 from fruit_slicing.game import FruitSlicingGame  # noqa: PLC0415
 
-                game = FruitSlicingGame()
+                game: FruitSlicingGame | ConductorGame = FruitSlicingGame()
                 game.run(pose_thread, screen, scores)
             elif mode == "conductor":
                 from conductor.game import ConductorGame  # noqa: PLC0415
