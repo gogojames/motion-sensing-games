@@ -94,6 +94,8 @@ class ConductorRenderer:
         screen.blit(note_surf, (int(cur_x - cur_r - 2), int(cur_y - cur_r - 2)))
 
         self._trail_points.append((cur_x, cur_y, progress))
+        if len(self._trail_points) > 500:
+            self._trail_points = self._trail_points[-250:]
 
     def render_gesture_indicator(
         self,
@@ -138,15 +140,52 @@ class ConductorRenderer:
         text = font.render(f"{combo}x", True, (255, 255, 100))
         screen.blit(text, (self._w // 2 - text.get_width() // 2, 70))
 
+    def render_hit_judgment(
+        self,
+        screen: object,
+        accuracy: float,
+        x: float,
+        y: float,
+    ) -> None:
+        """Render hit judgment text based on timing accuracy.
+
+        Args:
+            screen: pygame surface
+            accuracy: 0.0 to 1.0 (1.0 = perfect timing)
+            x, y: position to render the judgment
+        """
+        import pygame  # noqa: PLC0415
+
+        if accuracy >= 0.9:
+            text = "Perfect"
+            color = (255, 215, 0)
+        elif accuracy >= 0.7:
+            text = "Great"
+            color = (0, 255, 150)
+        elif accuracy >= 0.5:
+            text = "Good"
+            color = (100, 200, 255)
+        else:
+            text = "OK"
+            color = (180, 180, 180)
+
+        font = pygame.font.Font(None, 48)
+        surf = font.render(text, True, color)
+        surf.set_alpha(200)
+        screen.blit(surf, (int(x - surf.get_width() // 2), int(y - surf.get_height() // 2)))
+
     def render_rank_result(
         self,
         screen: object,
         result: dict,
     ) -> None:
-        """Render final rank with large letter."""
+        """Render final rank with large letter over camera background."""
         import pygame  # noqa: PLC0415
 
-        screen.fill((0, 0, 20))
+        # Semi-transparent overlay instead of opaque fill to preserve camera feed
+        overlay = pygame.Surface((self._w, self._h), pygame.SRCALPHA)
+        overlay.fill((0, 0, 20, 160))
+        screen.blit(overlay, (0, 0))
 
         rank = result.get("rank", "F")
         rank_colors = {

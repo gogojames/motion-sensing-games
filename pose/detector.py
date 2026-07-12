@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 import cv2
+import mediapipe as mp
 import numpy as np
 
 try:
@@ -24,11 +25,13 @@ class PoseFrame:
         landmarks: shape (33, 3) with [x_norm, y_norm, visibility]
         world_landmarks: shape (33, 3) with [x_m, y_m, z_m] in meters
         timestamp_ms: capture timestamp for velocity computation
+        frame: raw BGR camera frame for background rendering (optional)
     """
 
     landmarks: np.ndarray
     world_landmarks: np.ndarray
     timestamp_ms: int
+    frame: Optional[np.ndarray] = None
 
 
 class PoseDetector:
@@ -72,7 +75,7 @@ class PoseDetector:
             PoseFrame if pose detected, None otherwise
         """
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = mp_vision.Image(image_format=mp_vision.ImageFormat.SRGB, data=rgb)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         result = self._detector.detect_for_video(mp_image, timestamp_ms)
         if not result.pose_landmarks:
             return None
@@ -88,6 +91,7 @@ class PoseDetector:
             landmarks=landmarks,
             world_landmarks=world_landmarks,
             timestamp_ms=timestamp_ms,
+            frame=frame.copy(),
         )
 
     def warmup(

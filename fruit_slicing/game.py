@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 
 from common.scores import ScoreManager
+from common.renderer import render_debug_status
 from common.skeleton import render_skeleton
 from fruit_slicing.audio import (
     init_audio,
@@ -29,6 +30,7 @@ from fruit_slicing.renderer import (
     render_hand_blade,
     render_hud,
     render_particles,
+    render_score_popup,
 )
 from fruit_slicing.scoring import (
     calculate_final_score,
@@ -49,6 +51,7 @@ class FruitSlicingGame:
         screen: Any,
         scores: ScoreManager,
         sound_enabled: bool = True,
+        camera: Any = None,
     ) -> None:
         """Run the fruit-slicing game until the player returns to menu."""
         import pygame  # noqa: PLC0415
@@ -62,6 +65,7 @@ class FruitSlicingGame:
         bombs: list[Bomb] = []
         blades: list[HandBlade] = []
         particles: list[dict] = []
+        score_popups: list[dict] = []
         prev_pose: Any = None
         prev_time: float = time.monotonic()
         wave_timer: float = 0.0
@@ -73,7 +77,14 @@ class FruitSlicingGame:
         game_over_handled = False
 
         running = True
+        camera_frame: Any = None
         while running:
+            if camera is not None:
+                cam_frame = camera.read_frame()
+                if cam_frame is not None:
+                    pose_thread.push_frame(cam_frame)
+                    camera_frame = cam_frame
+
             now = time.monotonic()
             dt = now - prev_time
             prev_time = now
@@ -95,11 +106,11 @@ class FruitSlicingGame:
                         bombs.clear()
                         blades.clear()
                         particles.clear()
+                        score_popups.clear()
                         game_over_handled = False
                         last_combo_milestone = 0
 
             frame = pose_thread.get_pose()
-            camera_frame = frame.frame if frame is not None else None
 
             if state.phase == GamePhase.COUNTDOWN:
                 elapsed = now - countdown_start
@@ -114,6 +125,7 @@ class FruitSlicingGame:
                     spawn_timer = 0.0
                 else:
                     screen.fill((0, 0, 0))
+                    render_background(screen, camera_frame)
                     if frame is not None:
                         render_skeleton(screen, frame.landmarks, screen.get_width(), screen.get_height())
                     render_countdown(screen, count)
@@ -122,7 +134,7 @@ class FruitSlicingGame:
                     continue
 
             elif state.phase == GamePhase.PLAYING:
-                pose = pose_thread.get_pose()
+                pose = frame  # reuse the frame already fetched above
                 if pose is not None and prev_pose is not None:
                     swipe, velocity, hand = is_hand_blade(
                         prev_pose.landmarks,
@@ -186,6 +198,13 @@ class FruitSlicingGame:
                             f.sliced = True
                             pts = on_fruit_sliced(state, f)
                             play_slice_sound()
+                            score_popups.append({
+                                "x": f.x,
+                                "y": f.y,
+                                "points": pts,
+                                "combo": state.combo,
+                                "timer": 1.0,
+                            })
                             if state.combo > 0 and state.combo % 5 == 0 and state.combo != last_combo_milestone:
                                 play_combo_chime(state.combo)
                                 last_combo_milestone = state.combo
@@ -225,6 +244,10 @@ class FruitSlicingGame:
                     p["life"] -= dt * 2
                 particles = [p for p in particles if p["life"] > 0]
 
+                for popup in score_popups:
+                    popup["timer"] -= dt * 1.5
+                score_popups = [p for p in score_popups if p["timer"] > 0]
+
                 fruits = [f for f in fruits if not f.sliced and not f.missed]
                 bombs = [b for b in bombs if not b.exploded and b.y < screen.get_height() + 100]
 
@@ -253,7 +276,10 @@ class FruitSlicingGame:
                 for blade in blades:
                     render_hand_blade(screen, blade)
                 render_particles(screen, particles)
+                for popup in score_popups:
+                    render_score_popup(screen, popup["x"], popup["y"], popup["points"], popup["combo"], popup["timer"])
                 render_hud(screen, state)
+                render_debug_status(screen, pose_thread, camera_frame, frame)
 
             if state.phase == GamePhase.PAUSED:
                 import pygame  # noqa: PLC0415

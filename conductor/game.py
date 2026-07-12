@@ -7,7 +7,7 @@ from typing import Any, Optional
 import numpy as np
 
 from common.scores import ScoreManager
-from common.skeleton import render_skeleton
+from common.renderer import render_camera_background, render_debug_status, render_skeleton_overlay
 from conductor.gesture import ConductorGestureClassifier
 from conductor.music import MusicEngine
 from conductor.renderer import ConductorRenderer
@@ -27,6 +27,7 @@ class ConductorGame:
         screen: Any,
         scores: ScoreManager,
         sound_enabled: bool = True,
+        camera: Any = None,
     ) -> None:
         """Run the conductor game until the player returns to menu."""
         import pygame  # noqa: PLC0415
@@ -47,12 +48,21 @@ class ConductorGame:
         detected_gesture: Optional[str] = None
         gesture_timer: float = 0.0
         music_position: float = 0.0
+        hit_judgment: Optional[tuple[float, float, float]] = None
+        hit_judgment_timer: float = 0.0
 
         audio_buffer_size = 2048
         audio_stream: Optional[Any] = None
 
         running = True
+        camera_frame: Any = None
         while running:
+            if camera is not None:
+                cam_frame = camera.read_frame()
+                if cam_frame is not None:
+                    pose_thread.push_frame(cam_frame)
+                    camera_frame = cam_frame
+
             now = time.monotonic()
             dt = now - prev_time
             prev_time = now
@@ -68,7 +78,6 @@ class ConductorGame:
                             phase = "menu"
 
             frame = pose_thread.get_pose()
-            camera_frame = frame.frame if frame is not None else None
 
             if phase == "countdown":
                 elapsed = now - countdown_start
@@ -77,11 +86,13 @@ class ConductorGame:
                     phase = "playing"
                     track_position = 0.0
                     music_position = 0.0
+                    remaining = self.TRACK_DURATION
                 else:
                     screen.fill((0, 0, 20))
+                    render_camera_background(screen, camera_frame, alpha=0.4)
                     renderer.render_starfield(screen, dt)
                     if frame is not None:
-                        render_skeleton(screen, frame.landmarks, w, h)
+                        render_skeleton_overlay(screen, frame.landmarks, w, h, alpha=0.9)
                     font = pygame.font.Font(None, 120)
                     text = font.render(str(count), True, (255, 255, 255))
                     screen.blit(text, (w // 2 - text.get_width() // 2, h // 2 - 60))
@@ -123,6 +134,8 @@ class ConductorGame:
                                 newly_activated = music.check_layer_activations(scorer.combo)
                                 if scorer.supernova_active and not music._supernova_active:
                                     music.trigger_supernova()
+                                hit_judgment = (timing, note.target_x, note.target_y)
+                                hit_judgment_timer = 0.8
 
                 if gesture is None:
                     for note in choreography.get_active_notes():
@@ -156,12 +169,18 @@ class ConductorGame:
                 else:
                     detected_gesture = None
 
+                if hit_judgment_timer > 0:
+                    hit_judgment_timer -= dt
+                else:
+                    hit_judgment = None
+
             screen.fill((0, 0, 20))
-            renderer.render_starfield(screen, dt)
 
             if phase == "playing":
+                render_camera_background(screen, camera_frame, alpha=0.4)
+                renderer.render_starfield(screen, dt)
                 if frame is not None:
-                    render_skeleton(screen, frame.landmarks, w, h)
+                    render_skeleton_overlay(screen, frame.landmarks, w, h, alpha=0.9)
                 for note in choreography.get_active_notes():
                     renderer.render_target_ring(screen, note.target_type, note.target_x, note.target_y, note.ring_radius)
                     renderer.render_star_note(screen, note)
@@ -170,8 +189,16 @@ class ConductorGame:
                 renderer.render_star_power_meter(screen, scorer.star_power, scorer.supernova_active)
                 renderer.render_gesture_indicator(screen, detected_gesture)
                 renderer.render_hud(screen, scorer.score, remaining, sum(1 for l in music._layers.values() if l.enabled))
+                render_debug_status(screen, pose_thread, camera_frame, frame)
+
+                if hit_judgment is not None:
+                    accuracy, jx, jy = hit_judgment
+                    renderer.render_hit_judgment(screen, accuracy, jx, jy - 40)
 
             elif phase == "result":
+                render_camera_background(screen, camera_frame, alpha=0.3)
+                if frame is not None:
+                    render_skeleton_overlay(screen, frame.landmarks, w, h, alpha=0.6)
                 result = scorer.get_final_result()
                 renderer.render_rank_result(screen, result)
 

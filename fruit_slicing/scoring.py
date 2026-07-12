@@ -1,7 +1,7 @@
 """Scoring, combo, and multiplier logic for the fruit-slicing game."""
 from __future__ import annotations
 
-from fruit_slicing.entities import FruitSlicingState, FruitType
+from fruit_slicing.entities import Fruit, FruitSlicingState, FruitType
 
 
 def calculate_score(fruit_type: FruitType, combo: int) -> int:
@@ -23,9 +23,9 @@ def update_combo(state: FruitSlicingState, sliced: bool) -> None:
         state.combo = 0
 
 
-def on_fruit_sliced(state: FruitSlicingState, fruit_type: FruitType) -> int:
+def on_fruit_sliced(state: FruitSlicingState, fruit: Fruit) -> int:
     """Process a fruit slice event. Returns points earned."""
-    points = calculate_score(fruit_type, state.combo)
+    points = calculate_score(fruit.type, state.combo)
     update_combo(state, sliced=True)
     state.score += points
     state.fruits_sliced += 1

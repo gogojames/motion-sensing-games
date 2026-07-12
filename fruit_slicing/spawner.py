@@ -15,8 +15,8 @@ def generate_wave(wave_number: int) -> WaveConfig:
         fruit_count=max(3, int(4 + wave_number * diff)),
         bomb_count=min(wave_number // 2, 4),
         golden_chance=0.05,
-        min_speed=3.0 * diff,
-        max_speed=6.0 * diff,
+        min_speed=8.0 * diff,
+        max_speed=14.0 * diff,
         spawn_interval=max(0.3, 1.0 / diff),
         trajectory_types=["arc", "straight", "lob"],
     )

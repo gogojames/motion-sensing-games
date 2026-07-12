@@ -52,12 +52,16 @@ def render_hand_blade(screen: Any, blade: HandBlade) -> None:
         return
     alpha = min(255, blade.lifetime * 25)
     points = blade.arc if len(blade.arc) > 2 else [blade.start_pos, blade.end_pos]
-    if len(points) >= 2:
-        color = (100, 220, 255, alpha)
-        for i in range(len(points) - 1):
-            p1 = (int(points[i][0]), int(points[i][1]))
-            p2 = (int(points[i + 1][0]), int(points[i + 1][1]))
-            pygame.draw.line(screen, color[:3], p1, p2, 4)
+    if len(points) < 2:
+        return
+    w, h = screen.get_size()
+    blade_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+    color = (100, 220, 255, alpha)
+    for i in range(len(points) - 1):
+        p1 = (int(points[i][0]), int(points[i][1]))
+        p2 = (int(points[i + 1][0]), int(points[i + 1][1]))
+        pygame.draw.line(blade_surf, color, p1, p2, 4)
+    screen.blit(blade_surf, (0, 0))
 
 
 def render_particles(
@@ -66,13 +70,18 @@ def render_particles(
     """Render particle effects for slicing and explosions."""
     import pygame  # noqa: PLC0415
 
+    if not particles:
+        return
+    w, h = screen.get_size()
+    particle_surf = pygame.Surface((w, h), pygame.SRCALPHA)
     for p in particles:
         alpha = max(0, int(p.get("life", 1.0) * 255))
-        color = p.get("color", (255, 255, 255))
+        r, g, b = p.get("color", (255, 255, 255))
         size = max(1, int(p.get("size", 3)))
         pos = (int(p["x"]), int(p["y"]))
-        if 0 <= pos[0] < screen.get_width() and 0 <= pos[1] < screen.get_height():
-            pygame.draw.circle(screen, color, pos, size)
+        if 0 <= pos[0] < w and 0 <= pos[1] < h:
+            pygame.draw.circle(particle_surf, (r, g, b, alpha), pos, size)
+    screen.blit(particle_surf, (0, 0))
 
 
 def render_hud(screen: Any, state: FruitSlicingState) -> None:
@@ -136,9 +145,69 @@ def render_background(screen: Any, camera_frame: Any) -> None:
     import numpy as np  # noqa: PLC0415
     import pygame  # noqa: PLC0415
 
+    if camera_frame is None or camera_frame.size == 0:
+        return
+
     rgb = cv2.cvtColor(camera_frame, cv2.COLOR_BGR2RGB)
-    rgb = np.flipud(rgb)
     rgb = np.fliplr(rgb)
     surf = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
     surf = pygame.transform.scale(surf, screen.get_size())
     screen.blit(surf, (0, 0))
+
+
+def render_debug_status(
+    screen: Any,
+    pose_thread: Any,
+    camera_frame: Any,
+    frame: Any,
+) -> None:
+    """Render debug status indicator showing pose detection state."""
+    import pygame  # noqa: PLC0415
+
+    w, h = screen.get_size()
+    font = pygame.font.Font(None, 24)
+    y_offset = h - 100
+
+    cam_ok = camera_frame is not None and hasattr(camera_frame, 'size') and camera_frame.size > 0
+    cam_color = (0, 255, 0) if cam_ok else (255, 0, 0)
+    cam_text = font.render(f"Camera: {'OK' if cam_ok else 'FAIL'}", True, cam_color)
+    screen.blit(cam_text, (20, y_offset))
+    y_offset += 25
+
+    tracking = pose_thread.is_tracking if pose_thread else False
+    track_color = (0, 255, 0) if tracking else (255, 165, 0)
+    track_text = font.render(f"Tracking: {'Yes' if tracking else 'No'}", True, track_color)
+    screen.blit(track_text, (20, y_offset))
+    y_offset += 25
+
+    if frame is not None and hasattr(frame, 'landmarks'):
+        lm_count = len(frame.landmarks) if frame.landmarks is not None else 0
+        visible_count = sum(1 for lm in frame.landmarks if lm[2] > 0.5) if lm_count > 0 else 0
+        lm_text = font.render(f"Landmarks: {visible_count}/{lm_count} visible", True, (200, 200, 200))
+    else:
+        lm_text = font.render("Landmarks: None", True, (255, 100, 100))
+    screen.blit(lm_text, (20, y_offset))
+
+
+def render_score_popup(
+    screen: Any,
+    x: float,
+    y: float,
+    points: int,
+    combo: int,
+    timer: float,
+) -> None:
+    """Render floating score text that rises and fades."""
+    import pygame  # noqa: PLC0415
+
+    if timer <= 0:
+        return
+
+    alpha = min(255, int(timer * 400))
+    rise = (1.0 - timer) * 60
+
+    font = pygame.font.Font(None, 36)
+    color = (255, 255, 100) if combo >= 5 else (255, 255, 255)
+    text = font.render(f"+{points}", True, color)
+    text.set_alpha(alpha)
+    screen.blit(text, (int(x - text.get_width() // 2), int(y - rise)))

@@ -102,7 +102,7 @@ def render_skeleton(
     for i in range(min(33, landmarks.shape[0])):
         x_norm, y_norm, vis = landmarks[i, 0], landmarks[i, 1], landmarks[i, 2]
         if vis >= visibility_threshold:
-            px = max(0, min(width - 1, int(x_norm * width)))
+            px = max(0, min(width - 1, int((1.0 - x_norm) * width)))
             py = max(0, min(height - 1, int(y_norm * height)))
             pixel_coords[i] = (px, py)
 

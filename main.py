@@ -85,23 +85,19 @@ def _run_game_loop(camera: Any, settings: Any) -> None:
         menu = MainMenu(scores)
 
         while True:
-            frame = camera.read_frame()
-            if frame is not None:
-                pose_thread.push_frame(frame)
-
-            mode = menu.run(pose_thread, screen)
+            mode = menu.run(pose_thread, screen, camera)
             if mode == "quit":
                 break
             elif mode == "fruit_slicing":
                 from fruit_slicing.game import FruitSlicingGame  # noqa: PLC0415
 
                 game: FruitSlicingGame | ConductorGame = FruitSlicingGame()
-                game.run(pose_thread, screen, scores)
+                game.run(pose_thread, screen, scores, camera=camera)
             elif mode == "conductor":
                 from conductor.game import ConductorGame  # noqa: PLC0415
 
                 game = ConductorGame()
-                game.run(pose_thread, screen, scores)
+                game.run(pose_thread, screen, scores, camera=camera)
     finally:
         pose_thread.stop()
         detector.close()
