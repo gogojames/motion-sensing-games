@@ -160,6 +160,56 @@ motion-sensing-games/
 `fruit_slicing/` and `conductor/` as game-specific modules, `common/` for
 shared utilities, `tests/` mirroring source layout. No web/mobile split needed.
 
+## Enhancement: Pose Skeleton Overlay + Calibration Removal
+
+**Date**: 2026-07-12 | **Request**: "进入游戏画面能看到站立的人，没有校准姿态过程"
+
+### Scope
+
+1. **FR-004 Skeleton Overlay**: Add real-time pose skeleton rendering in both games
+2. **Calibration Removal**: Remove 2-second calibration step, skip directly to gameplay
+3. **Frame Feeding Fix**: Wire camera.read_frame() → pose_thread.push_frame() (bug fix)
+4. **Countdown Enhancement**: Show skeleton during 3-2-1 countdown
+
+### Technical Context (Addition)
+
+**New Module**: `common/skeleton.py`
+- `render_skeleton(screen, landmarks, width, height, visibility_threshold=0.5)`
+- Uses MediaPipe POSE_CONNECTIONS (33 landmarks, 35 bone connections)
+- Color-coded by body region
+- Visibility filtering: skip landmarks below 0.5, skip bones with occluded endpoints
+
+**Modified Modules**:
+| Module | Change |
+|--------|--------|
+| `common/calibration.py` | DELETE — no longer needed |
+| `fruit_slicing/game.py` | Remove CALIBRATE phase; add skeleton rendering |
+| `fruit_slicing/entities.py` | Remove CalibrationData, CALIBRATE enum |
+| `conductor/game.py` | Remove calibration; add skeleton rendering |
+| `conductor/gesture.py` | Accept explicit thresholds instead of CalibrationData |
+| `main.py` | Add frame feeding: camera.read_frame() → pose_thread.push_frame() |
+| `fruit_slicing/renderer.py` | Import and call render_skeleton() |
+| `conductor/renderer.py` | Import and call render_skeleton() |
+
+### Constitution Check (Post-Design)
+
+- **Principle I (Code Quality)**: ✅ Single skeleton.py module, type hints, no dead code
+- **Principle II (Testing)**: ⚠️ Need tests for skeleton rendering (mock pygame surface)
+- **Principle III (UX Consistency)**: ✅ Skeleton shown in both games, same visual style
+- **Principle IV (Performance)**: ✅ Skeleton rendering is O(35) draw calls — negligible overhead
+
+### Implementation Order
+
+1. Fix frame feeding bug (main.py) — prerequisite for all pose data
+2. Create common/skeleton.py — skeleton renderer
+3. Remove calibration (all files) — simplify game flow
+4. Integrate skeleton into fruit_slicing game loop
+5. Integrate skeleton into conductor game loop
+6. Add skeleton to countdown phase
+7. Add unit tests for skeleton rendering
+
+---
+
 ## Complexity Tracking
 
 > **Not required** — Constitutional Check passed with zero violations.

@@ -3,16 +3,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
-
-from common.calibration import CalibrationData
 
 
 class GamePhase(Enum):
     """Game state machine phases."""
 
     MENU = "menu"
-    CALIBRATE = "calibrate"
     COUNTDOWN = "countdown"
     PLAYING = "playing"
     PAUSED = "paused"
@@ -109,4 +105,3 @@ class FruitSlicingState:
     fruits_missed: int = 0
     wave: int = 1
     golden_fruit_spawned: bool = False
-    calibration: Optional[CalibrationData] = None

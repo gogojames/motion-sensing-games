@@ -5,15 +5,16 @@ from typing import Optional
 
 import numpy as np
 
-from common.calibration import CalibrationData
 from pose.landmarks import GestureEvent, GestureType, joint_angle
+
+DEFAULT_STANDING_HIP_Y = 0.55
+DEFAULT_ARM_SPAN = 0.6
 
 
 class ConductorGestureClassifier:
     """Classifies conductor-specific gestures from pose landmarks."""
 
-    def __init__(self, calibration: CalibrationData) -> None:
-        self._calibration = calibration
+    def __init__(self) -> None:
         self._arms_extend_start: float | None = None
         self._arms_extend_hold: float = 0.5
 
@@ -36,10 +37,10 @@ class ConductorGestureClassifier:
         elbow_r = pose[14]
 
         hip_y_avg = (hip_l[1] + hip_r[1]) / 2.0
-        squat_threshold = self._calibration.standing_hip_y + 0.12
+        squat_threshold = DEFAULT_STANDING_HIP_Y + 0.12
 
         if hip_y_avg > squat_threshold:
-            speed = abs(hip_y_avg - self._calibration.standing_hip_y) / max(dt, 0.001)
+            speed = abs(hip_y_avg - DEFAULT_STANDING_HIP_Y) / max(dt, 0.001)
             return GestureEvent(
                 type=GestureType.SQUAT,
                 hand=None,
@@ -49,27 +50,25 @@ class ConductorGestureClassifier:
                 timestamp=int(current_time * 1000),
             )
 
-        arm_span = self._calibration.arm_span
-        if arm_span > 0:
-            wrist_distance = abs(wrist_l[0] - wrist_r[0])
-            left_angle = joint_angle(pose, 11, 13, 15, width, height)
-            right_angle = joint_angle(pose, 12, 14, 16, width, height)
-            arms_out = (left_angle > 120.0) and (right_angle > 120.0) and (wrist_distance > arm_span * 0.75)
+        wrist_distance = abs(wrist_l[0] - wrist_r[0])
+        left_angle = joint_angle(pose, 11, 13, 15, width, height)
+        right_angle = joint_angle(pose, 12, 14, 16, width, height)
+        arms_out = (left_angle > 120.0) and (right_angle > 120.0) and (wrist_distance > DEFAULT_ARM_SPAN * 0.75)
 
-            if arms_out:
-                if self._arms_extend_start is None:
-                    self._arms_extend_start = current_time
-                elif (current_time - self._arms_extend_start) >= self._arms_extend_hold:
-                    return GestureEvent(
-                        type=GestureType.ARMS_EXTEND,
-                        hand="both",
-                        position=((wrist_l[0] + wrist_r[0]) / 2, (wrist_l[1] + wrist_r[1]) / 2),
-                        velocity=wrist_distance / max(dt, 0.001),
-                        confidence=0.9,
-                        timestamp=int(current_time * 1000),
-                    )
-            else:
-                self._arms_extend_start = None
+        if arms_out:
+            if self._arms_extend_start is None:
+                self._arms_extend_start = current_time
+            elif (current_time - self._arms_extend_start) >= self._arms_extend_hold:
+                return GestureEvent(
+                    type=GestureType.ARMS_EXTEND,
+                    hand="both",
+                    position=((wrist_l[0] + wrist_r[0]) / 2, (wrist_l[1] + wrist_r[1]) / 2),
+                    velocity=wrist_distance / max(dt, 0.001),
+                    confidence=0.9,
+                    timestamp=int(current_time * 1000),
+                )
+        else:
+            self._arms_extend_start = None
 
         hand_sync_threshold = 0.15
         wrist_proximity = abs(wrist_l[0] - wrist_r[0])

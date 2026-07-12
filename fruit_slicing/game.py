@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
-from common.calibration import CalibrationData, CalibrationScreen
 from common.scores import ScoreManager
+from common.skeleton import render_skeleton
 from fruit_slicing.audio import (
     init_audio,
     play_bomb_sound,
@@ -57,12 +57,11 @@ class FruitSlicingGame:
         set_enabled(sound_enabled)
         clock = pygame.time.Clock()
         state = FruitSlicingState()
-        state.phase = GamePhase.CALIBRATE
+        state.phase = GamePhase.COUNTDOWN
         fruits: list = []
         bombs: list[Bomb] = []
         blades: list[HandBlade] = []
         particles: list[dict] = []
-        calibration: Optional[CalibrationData] = None
         prev_pose: Any = None
         prev_time: float = time.monotonic()
         wave_timer: float = 0.0
@@ -91,7 +90,7 @@ class FruitSlicingGame:
                         state.phase = GamePhase.PLAYING
                     elif event.key == pygame.K_r and state.phase == GamePhase.GAME_OVER:
                         state = FruitSlicingState()
-                        state.phase = GamePhase.CALIBRATE
+                        state.phase = GamePhase.COUNTDOWN
                         fruits.clear()
                         bombs.clear()
                         blades.clear()
@@ -99,19 +98,10 @@ class FruitSlicingGame:
                         game_over_handled = False
                         last_combo_milestone = 0
 
-            camera_frame = pose_thread.get_pose()
+            frame = pose_thread.get_pose()
+            camera_frame = frame.frame if frame is not None else None
 
-            if state.phase == GamePhase.CALIBRATE:
-                cal = CalibrationScreen()
-                try:
-                    calibration = cal.run(pose_thread, screen)
-                except RuntimeError:
-                    calibration = CalibrationData(0, 0.5, 0, 0, 0.0)
-                state.calibration = calibration
-                state.phase = GamePhase.COUNTDOWN
-                countdown_start = now
-
-            elif state.phase == GamePhase.COUNTDOWN:
+            if state.phase == GamePhase.COUNTDOWN:
                 elapsed = now - countdown_start
                 count = 3 - int(elapsed)
                 if count <= 0:
@@ -124,6 +114,8 @@ class FruitSlicingGame:
                     spawn_timer = 0.0
                 else:
                     screen.fill((0, 0, 0))
+                    if frame is not None:
+                        render_skeleton(screen, frame.landmarks, screen.get_width(), screen.get_height())
                     render_countdown(screen, count)
                     pygame.display.flip()
                     clock.tick(60)
@@ -132,7 +124,6 @@ class FruitSlicingGame:
             elif state.phase == GamePhase.PLAYING:
                 pose = pose_thread.get_pose()
                 if pose is not None and prev_pose is not None:
-                    dt_pose = now - (now - dt)
                     swipe, velocity, hand = is_hand_blade(
                         prev_pose.landmarks,
                         pose.landmarks,
@@ -253,6 +244,8 @@ class FruitSlicingGame:
             screen.fill((0, 0, 0))
             if state.phase in (GamePhase.PLAYING, GamePhase.PAUSED, GamePhase.GAME_OVER):
                 render_background(screen, camera_frame)
+                if frame is not None:
+                    render_skeleton(screen, frame.landmarks, screen.get_width(), screen.get_height())
                 for f in fruits:
                     render_fruit(screen, f)
                 for b in bombs:

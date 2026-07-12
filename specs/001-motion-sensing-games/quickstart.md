@@ -1,6 +1,7 @@
 # Quickstart: Motion-Sensing Games
 
 *Validation guide for running and testing the feature*
+*Updated: 2026-07-12 — Removed calibration, added skeleton overlay*
 
 ## Prerequisites
 
@@ -43,8 +44,8 @@ On first launch:
    download dialog appears. The ~5.5MB model downloads once from Google's
    CDN. Shows progress bar.
 2. **Camera permission**: macOS will prompt for camera access. Grant it.
-3. **Calibration**: Stand naturally for 2 seconds — the game detects your
-   pose and calibrates.
+3. **Skeleton overlay**: Your pose skeleton appears immediately — see yourself
+   standing with color-coded bones and joints.
 4. **Main menu**: Both game modes are available.
 
 Subsequent runs: fully offline, no network access.
@@ -59,7 +60,7 @@ python main.py
 ```
 
 **Expected outcomes:**
-1. Calibration screen appears → stand naturally for 2 seconds
+1. Skeleton overlay visible during menu and countdown
 2. 3-2-1 countdown → fruits begin flying from screen bottom
 3. Wave hand rapidly → "hand blade" visual trail appears
 4. Hand intersects a fruit → fruit splits with particle effect + slicing sound
@@ -98,7 +99,7 @@ python main.py
 ```
 
 **Expected outcomes:**
-1. Calibration: Stand naturally for 2 seconds
+1. Skeleton overlay visible during countdown
 2. 3-2-1 countdown begins
 3. Star notes approach from distance toward target rings
 4. Reach hand to cyan target → drum layer activates
@@ -115,7 +116,7 @@ least rank "C" and hearing at least 2 music layers.
 
 **D1 — Squat detection (gold star gate):**
 1. During gameplay, a gold target ring appears with a down-arrow indicator
-2. Player squats (lowers hips below calibration baseline)
+2. Player squats (lowers hips below default threshold)
 3. Expected: Gold burst effect, score bonus (+30), star power meter fills
 4. **Pass**: Squat gesture triggers gold target hit.
 
@@ -145,6 +146,21 @@ All game actions must also work via keyboard:
 4. Game should start without any network errors or delays
 5. Play both games — full functionality should work offline
 
+### Scenario G: Skeleton Overlay Verification
+
+1. Launch `main.py`
+2. Stand in front of camera
+3. Expected: Real-time skeleton overlay showing your pose
+   - Face landmarks: white
+   - Torso: cyan
+   - Left arm: green
+   - Right arm: red
+   - Left leg: blue
+   - Right leg: orange
+4. Move around — skeleton follows your movements
+5. Partially hide an arm — occluded joints disappear, visible ones remain
+6. **Pass**: Skeleton accurately tracks and renders your pose in real-time.
+
 ## Test Data Locations
 
 | Data | Path (macOS) | Path (Windows) |
@@ -167,6 +183,7 @@ Validation Run: ___________   Date: ___________
 [ ] D2: Arms-extend gesture (conductor)
 [ ] E: Keyboard fallback (all 5 keys)
 [ ] F: Offline mode verification
+[ ] G: Skeleton overlay verification
 
 Notes: ________________________________________
 ```

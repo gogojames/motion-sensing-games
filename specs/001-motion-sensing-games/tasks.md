@@ -107,21 +107,47 @@
 
 ---
 
+## Phase 6: Enhancement — Skeleton Overlay + Calibration Removal (2026-07-12)
+
+**Goal**: "进入游戏画面能看到站立的人，没有校准姿态过程" — Show player's pose skeleton in real-time, remove calibration step.
+
+**Independent Test**: Launch game → skeleton visible immediately → no calibration screen → countdown with skeleton → gameplay with skeleton overlay
+
+### Implementation for Enhancement
+
+- [x] T033 Fix frame feeding bug in `main.py` — add `camera.read_frame()` → `pose_thread.push_frame(frame)` in the main game loop before `pose_thread.get_pose()` calls; without this fix, PoseThread._frame_queue is always empty and `get_pose()` returns None; insert frame reading at top of while loop in `_run_game_loop()`
+- [x] T034 Create `common/skeleton.py` — real-time pose skeleton renderer: define `POSE_CONNECTIONS` list (35 bone pairs from MediaPipe); define `SKELETON_COLORS` dict (face: white, torso: cyan, left_arm: green, right_arm: red, left_leg: blue, right_leg: orange); implement `render_skeleton(surface, landmarks, width, height, visibility_threshold=0.5, line_width=3, joint_radius=4)` that: converts normalized [0,1] landmarks to pixel coords, filters by visibility ≥ 0.5, draws bones (lines) between connected landmarks (skip if either endpoint occluded), draws joints (circles) on top; use `pose/landmarks.py` index constants
+- [x] T035 Remove calibration from `common/calibration.py` — delete the file entirely; remove import from `fruit_slicing/game.py`, `fruit_slicing/entities.py`, `conductor/game.py`, `conductor/gesture.py`
+- [x] T036 Update `fruit_slicing/entities.py` — remove `CalibrationData` import, remove `CALIBRATE = "calibrate"` from GamePhase enum, remove `calibration: Optional[CalibrationData]` field from `FruitSlicingState`
+- [x] T037 Update `fruit_slicing/game.py` — remove calibration phase: delete `GamePhase.CALIBRATE` import, change initial phase from `GamePhase.CALIBRATE` to `GamePhase.COUNTDOWN`, remove calibration block (lines ~104-112), remove `state.calibration` assignment; add frame feeding: `frame = camera.read_frame()` + `pose_thread.push_frame(frame)` at top of main loop
+- [x] T038 Refactor `conductor/gesture.py` — replace `CalibrationData` dependency with hardcoded defaults: `__init__(self, standing_hip_y: float = 0.55, arm_span_factor: float = 0.6)`; update `classify()` to use `self._standing_hip_y` instead of `self._calibration.standing_hip_y`; update arms_extend check to use `screen_width * self._arm_span_factor` instead of `self._calibration.arm_span`
+- [x] T039 Update `conductor/game.py` — remove calibration phase: delete `"calibrate"` phase, change initial phase to `"countdown"`, remove calibration block (lines ~73-81), instantiate `ConductorGestureClassifier()` with defaults instead of calibration data; add frame feeding: `frame = camera.read_frame()` + `pose_thread.push_frame(frame)` at top of main loop
+- [x] T040 [P] Integrate skeleton into `fruit_slicing/game.py` — import `common.skeleton.render_skeleton`; in PLAYING phase, after `render_background()`, call `render_skeleton(screen, pose.landmarks, w, h)` using the latest pose data; also render skeleton during COUNTDOWN phase
+- [x] T041 [P] Integrate skeleton into `conductor/game.py` — import `common.skeleton.render_skeleton`; in PLAYING phase, after `render_starfield()`, call `render_skeleton(screen, pose.landmarks, w, h)` using the latest pose data; also render skeleton during COUNTDOWN phase
+- [x] T042 [P] Implement `tests/test_skeleton.py` — unit tests for common/skeleton.py: test POSE_CONNECTIONS has 35 pairs; test render_skeleton with mock pygame surface (verify draw calls); test visibility filtering (landmarks below threshold not drawn); test bone skipping when endpoint occluded; test color mapping per body region
+
+### Validation
+
+- [x] T043 Run quickstart.md validation scenario G (skeleton overlay verification): launch game, verify skeleton appears in menu, countdown, and gameplay for both games; verify no calibration screen appears; verify skeleton tracks movements in real-time
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
 
 ```
-Phase 1: Setup ──────→ Phase 2: Foundational ──────→ Phase 3: US1 (MVP) ──→ Phase 4: US2
-                                                        │                      │
-                                                        └──── Phase 5: Polish ←┘
+Phase 1: Setup ──→ Phase 2: Foundational ──→ Phase 3: US1 ──→ Phase 4: US2 ──→ Phase 5: Polish
+                                                                   │
+                                                                   └──→ Phase 6: Enhancement
 ```
 
 - **Phase 1 (Setup)**: No dependencies — starts immediately
 - **Phase 2 (Foundational)**: Depends on Phase 1 completion — BLOCKS all user stories
 - **Phase 3 (US1)**: Depends on Phase 2 completion — MVP deliverable
-- **Phase 4 (US2)**: Depends on Phase 2 completion — can start after US1 OR in parallel if team allows
+- **Phase 4 (US2)**: Depends on Phase 2 completion — can start after US1 OR in parallel
 - **Phase 5 (Polish)**: Depends on Phase 3 (at minimum) and Phase 4 completion
+- **Phase 6 (Enhancement)**: Depends on Phase 5 completion — modifies existing code
 
 ### User Story Dependencies
 
@@ -169,6 +195,14 @@ All parallel: T026 (test_landmarks) ‖ T027 (test_collision) ‖ T028 (test_sco
 Sequential after tests: T030 (performance) → T031 (code quality) → T032 (validation)
 ```
 
+#### Phase 6 — Enhancement (3 parallel groups)
+```
+Group 1 (sequential): T033 (frame feeding fix) → T034 (skeleton.py) → T035 (delete calibration)
+Group 2 (parallel):   T036 (entities.py) ‖ T037 (fruit_slicing/game.py) ‖ T038 (gesture.py) ‖ T039 (conductor/game.py)
+Group 3 (parallel):   T040 (skeleton in fruit_slicing) ‖ T041 (skeleton in conductor) ‖ T042 (test_skeleton)
+Group 4 (sequential): T043 (validation)
+```
+
 ---
 
 ## Implementation Strategy
@@ -198,6 +232,17 @@ Sequential after tests: T030 (performance) → T031 (code quality) → T032 (val
 | Gesture false positives | Calibrate thresholds per user; require minimum velocity | T009, T007 |
 | Audio synthesis clipping | Use `// 3` averaging for chord mixing | T017, T022 |
 | Model download fails | Show retry/quit dialog; allow manual model placement | T004 |
+| Frame feeding bug | Fix wiring: camera.read_frame() → pose_thread.push_frame() | T033 |
+| Calibration removal breaks conductor | Hardcoded defaults for squat/arm-span thresholds | T038 |
+
+### Enhancement Strategy (Phase 6)
+
+1. Fix frame feeding bug first (T033) — prerequisite for all pose data
+2. Create skeleton renderer (T034) — independent module
+3. Remove calibration (T035-T039) — parallel file modifications
+4. Integrate skeleton into both games (T040-T041) — parallel
+5. Add tests (T042) — parallel with integration
+6. Validate (T043) — final check
 
 ---
 

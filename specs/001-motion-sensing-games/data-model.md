@@ -1,6 +1,7 @@
 # Data Model: Motion-Sensing Games
 
 *Generated: 2026-07-11*
+*Updated: 2026-07-12 — Removed CalibrationData, added SkeletonOverlay*
 
 ## Shared Entities
 
@@ -12,19 +13,33 @@ class PoseFrame:
     landmarks: np.ndarray          # shape (33, 3) — normalized x, y, visibility for each keypoint
     world_landmarks: np.ndarray    # shape (33, 3) — world-space x, y, z in meters
     timestamp_ms: int              # capture timestamp for velocity computation
-    handedness: str | None         # "left", "right", or None if hands not visible
 ```
 
-### Calibration Data
-Captured during the 2-second standing calibration phase.
+### Skeleton Overlay
+Real-time pose visualization rendered on pygame surface.
 ```python
-@dataclass
-class CalibrationData:
-    shoulder_width: float               # pixel distance between shoulders
-    standing_hip_y: float               # baseline hip Y position (for squat detection)
-    arm_span: float                     # max pixel distance between wrists
-    torso_angle: float                  # torso lean from vertical (degrees)
-    confidence: float                   # calibration quality score (0.0–1.0)
+# MediaPipe 33 landmark connections (bone pairs)
+POSE_CONNECTIONS: list[tuple[int, int]]  # 35 connections
+
+# Color scheme by body region
+SKELETON_COLORS: dict[str, tuple[int, int, int]]
+# face: (255, 255, 255), torso: (100, 200, 255)
+# left_arm: (0, 255, 0), right_arm: (255, 0, 0)
+# left_leg: (0, 150, 255), right_leg: (255, 150, 0)
+
+# Visibility threshold
+VISIBILITY_THRESHOLD: float = 0.5  # MediaPipe default
+
+def render_skeleton(
+    surface: pygame.Surface,
+    landmarks: np.ndarray,         # shape (33, 3) — x, y, visibility
+    width: int,
+    height: int,
+    visibility_threshold: float = 0.5,
+    line_width: int = 3,
+    joint_radius: int = 4,
+) -> None:
+    """Draw pose skeleton on pygame surface."""
 ```
 
 ### High Score Record
@@ -71,10 +86,6 @@ class GestureType(Enum):
     DUAL_HAND_SYNC = "dual_sync"        # both hands together (purple)
     SQUAT = "squat"                     # body lowers (gold)
     ARMS_EXTEND = "arms_extend"         # arms wide hold (constellation)
-
-    # Calibration
-    HANDS_UP_HOLD = "hands_up_hold"     # hands up for 1 second (start)
-    STANDING_NEUTRAL = "standing"       # natural standing (calibration)
 ```
 
 ---
@@ -85,7 +96,7 @@ class GestureType(Enum):
 ```python
 @dataclass
 class FruitSlicingState:
-    phase: GamePhase                    # MENU, CALIBRATE, COUNTDOWN, PLAYING, GAME_OVER
+    phase: GamePhase                    # MENU, COUNTDOWN, PLAYING, GAME_OVER
     lives: int                          # start at 3, decrement on bomb hit or fruit miss
     score: int                          # current session score
     combo: int                          # current combo streak
@@ -100,8 +111,7 @@ class FruitSlicingState:
 ```python
 class GamePhase(Enum):
     MENU = "menu"                       # Gesture-driven main menu
-    CALIBRATE = "calibrate"             # 2-second calibration pose
-    COUNTDOWN = "countdown"             # 3-2-1 countdown
+    COUNTDOWN = "countdown"             # 3-2-1 countdown with skeleton overlay
     PLAYING = "playing"                 # Active gameplay
     PAUSED = "paused"                   # Paused state
     GAME_OVER = "game_over"             # Results display
@@ -222,7 +232,6 @@ class ConductorState:
 ```python
 class ConductorPhase(Enum):
     MENU = "menu"
-    CALIBRATE = "calibrate"
     COUNTDOWN = "countdown"
     PLAYING = "playing"
     RESULT = "result"                   # Score display
@@ -301,9 +310,8 @@ Score  < 1000 → F (Fading)
 ### Fruit-Slicing
 
 ```
-MENU ──(start gesture/key)──→ CALIBRATE
-CALIBRATE ──(2s elapsed)──→ COUNTDOWN
-COUNTDOWN ──(3s elapsed)──→ PLAYING
+MENU ──(start gesture/key)──→ COUNTDOWN
+COUNTDOWN ──(3s + skeleton visible)──→ PLAYING
 PLAYING ──(lives = 0)──→ GAME_OVER
 PLAYING ──(Esc/P key)──→ PAUSED
 PAUSED ──(P key)──→ PLAYING
@@ -313,9 +321,8 @@ GAME_OVER ──(restart gesture/key)──→ MENU
 ### Conductor
 
 ```
-MENU ──(hands_up 1s / space)──→ CALIBRATE
-CALIBRATE ──(2s neutral pose)──→ COUNTDOWN
-COUNTDOWN ──(3s elapsed)──→ PLAYING
+MENU ──(hands_up 1s / space)──→ COUNTDOWN
+COUNTDOWN ──(3s + skeleton visible)──→ PLAYING
 PLAYING ──(song ends)──→ RESULT
 RESULT ──(hands_up 1s / space)──→ MENU
 ```

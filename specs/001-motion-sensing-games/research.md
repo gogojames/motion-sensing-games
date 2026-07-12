@@ -316,3 +316,124 @@ options = vision.PoseLandmarkerOptions(
 - **"Left/Right" is the person's perspective** — left wrist (idx 15) is the
   person's actual left arm. In a mirrored webcam view, this appears on the
   right side of the display.
+
+---
+
+## Enhancement Research: Pose Skeleton Overlay + Calibration Removal
+
+*Generated: 2026-07-12*
+*Request: "进入游戏画面能看到站立的人，没有校准姿态过程"*
+
+### R1: Pose Skeleton Overlay Rendering
+
+**Decision**: Create `common/skeleton.py` with `render_skeleton()` using MediaPipe's official POSE_CONNECTIONS. Draw bones first (lines), then joints (circles). Visibility threshold 0.5 (MediaPipe default).
+
+**Rationale**:
+- MediaPipe `drawing_utils.py` uses visibility threshold 0.5, skips bones when either endpoint is below threshold
+- Existing `pose/landmarks.py` defines all 33 landmark indices; `normalize_landmarks()` converts [0,1] to pixels
+- PoseFrame.landmarks is (33,3) with [x, y, visibility] — visibility is column 2
+- Color-code by body region: face (white), torso (cyan), left arm (green), right arm (red), left leg (blue), right leg (orange)
+
+**MediaPipe POSE_CONNECTIONS** (bone pairs):
+```python
+POSE_CONNECTIONS = [
+    # Face
+    (0,1),(1,2),(2,3),(3,7), (0,4),(4,5),(5,6),(6,8), (9,10),
+    # Torso
+    (11,12),(11,23),(12,24),(23,24),
+    # Left arm
+    (11,13),(13,15),(15,17),(15,19),(15,21),(17,19),
+    # Right arm
+    (12,14),(14,16),(16,18),(16,20),(16,22),(18,20),
+    # Left leg
+    (23,25),(25,27),(27,29),(29,31),(27,31),
+    # Right leg
+    (24,26),(26,28),(28,30),(30,32),(28,32),
+]
+```
+
+**Alternatives Considered**:
+| Alternative | Rejected Because |
+|-------------|------------------|
+| MediaPipe drawing_utils | Requires mediapipe.solutions, heavier import |
+| Per-game renderer duplication | Code duplication, maintenance burden |
+| OpenGL/GPU rendering | Overkill for 33 points |
+
+---
+
+### R2: Calibration Removal
+
+**Decision**: Remove calibration entirely. Fruit-slicing never uses CalibrationData. Conductor uses it for 3 thresholds — replace with hardcoded defaults.
+
+**Rationale**:
+- **Fruit slicing**: `state.calibration` is captured but never accessed during gameplay. Swipe detection uses raw landmarks directly.
+- **Conductor gesture classifier** uses calibration for:
+  - `standing_hip_y + 0.12` → squat threshold (line 39)
+  - `standing_hip_y` → squat speed reference (line 42)
+  - `arm_span * 0.75` → arms-extended threshold (line 52, 57)
+- Replace with: `standing_hip_y = 0.55` (typical), `arm_span = screen_width * 0.6` (dynamic)
+
+**Files to Modify**:
+| File | Change |
+|------|--------|
+| `common/calibration.py` | DELETE |
+| `fruit_slicing/game.py` | Remove CALIBRATE phase, skip to COUNTDOWN |
+| `fruit_slicing/entities.py` | Remove CalibrationData import, CALIBRATE enum, calibration field |
+| `conductor/game.py` | Remove calibration phase, pass defaults to gesture classifier |
+| `conductor/gesture.py` | Refactor constructor to accept explicit thresholds |
+
+**Alternatives Considered**:
+| Alternative | Rejected Because |
+|-------------|------------------|
+| Keep calibration optional | User explicitly said "没有校准姿态过程" |
+| Auto-calibrate from first N frames | Over-engineering for 3 thresholds |
+
+---
+
+### R3: Frame Feeding Gap (Bug Fix)
+
+**Decision**: Fix wiring bug — main loop must call `camera.read_frame()` → `pose_thread.push_frame(frame)`.
+
+**Rationale**:
+- `push_frame()` is never called — PoseThread._frame_queue is always empty
+- `camera.read_frame()` is never called — camera opened but never read
+- Without fix, `pose_thread.get_pose()` always returns None
+
+**Approach**: Add frame feeding in the main game loop before pose consumption:
+```python
+frame = camera.read_frame()
+if frame is not None:
+    pose_thread.push_frame(frame)
+```
+
+---
+
+### R4: Skeleton Integration Points
+
+**Decision**: Render skeleton in both game renderers, after background but before game entities.
+
+**Rendering Order**:
+```
+1. render_background()     — camera feed or solid color
+2. render_skeleton()       — pose overlay (NEW)
+3. render_game_entities()  — fruits, targets, HUD
+4. render_ui()             — score, countdown, game-over
+```
+
+**Integration Points**:
+| Game | Insert After | Insert Before |
+|------|-------------|---------------|
+| Fruit slicing | `render_background()` (~line 255) | `render_fruit()` |
+| Conductor | `render_starfield()` (~line 168) | `render_target_ring()` |
+| Menu | Optional — show skeleton for tracking feedback | Menu items |
+
+---
+
+### R5: Countdown Enhancement
+
+**Decision**: Keep 3-2-1 countdown (matches tasks.md/data-model.md). Add skeleton rendering during countdown.
+
+**Rationale**:
+- Spec says 5-second, but tasks.md says 3-2-1 and data-model.md says "3-2-1 countdown"
+- Skeleton during countdown satisfies FR-009's "showing the player their detected pose"
+- 3 seconds is sufficient for onboarding

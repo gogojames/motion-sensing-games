@@ -85,6 +85,10 @@ def _run_game_loop(camera: Any, settings: Any) -> None:
         menu = MainMenu(scores)
 
         while True:
+            frame = camera.read_frame()
+            if frame is not None:
+                pose_thread.push_frame(frame)
+
             mode = menu.run(pose_thread, screen)
             if mode == "quit":
                 break

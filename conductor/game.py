@@ -6,8 +6,8 @@ from typing import Any, Optional
 
 import numpy as np
 
-from common.calibration import CalibrationData, CalibrationScreen
 from common.scores import ScoreManager
+from common.skeleton import render_skeleton
 from conductor.gesture import ConductorGestureClassifier
 from conductor.music import MusicEngine
 from conductor.renderer import ConductorRenderer
@@ -38,9 +38,8 @@ class ConductorGame:
         scorer = ConductorScorer()
         choreography = generate_choreography(self.TRACK_DURATION, screen_width=w, screen_height=h)
 
-        phase = "calibrate"
-        calibration: Optional[CalibrationData] = None
-        gesture_classifier: Optional[ConductorGestureClassifier] = None
+        phase = "countdown"
+        gesture_classifier = ConductorGestureClassifier()
         track_position: float = 0.0
         countdown_start: float = 0.0
         prev_pose: Any = None
@@ -68,19 +67,10 @@ class ConductorGame:
                         if phase == "result":
                             phase = "menu"
 
-            camera_frame = pose_thread.get_pose()
+            frame = pose_thread.get_pose()
+            camera_frame = frame.frame if frame is not None else None
 
-            if phase == "calibrate":
-                cal = CalibrationScreen()
-                try:
-                    calibration = cal.run(pose_thread, screen)
-                except RuntimeError:
-                    calibration = CalibrationData(0, 0.5, 0, 0, 0.0)
-                gesture_classifier = ConductorGestureClassifier(calibration)
-                phase = "countdown"
-                countdown_start = now
-
-            elif phase == "countdown":
+            if phase == "countdown":
                 elapsed = now - countdown_start
                 count = 3 - int(elapsed)
                 if count <= 0:
@@ -90,6 +80,8 @@ class ConductorGame:
                 else:
                     screen.fill((0, 0, 20))
                     renderer.render_starfield(screen, dt)
+                    if frame is not None:
+                        render_skeleton(screen, frame.landmarks, w, h)
                     font = pygame.font.Font(None, 120)
                     text = font.render(str(count), True, (255, 255, 255))
                     screen.blit(text, (w // 2 - text.get_width() // 2, h // 2 - 60))
@@ -113,7 +105,7 @@ class ConductorGame:
 
                 pose = pose_thread.get_pose()
                 gesture = None
-                if pose is not None and gesture_classifier is not None:
+                if pose is not None:
                     gesture = gesture_classifier.classify(pose.landmarks, now, dt, w, h)
 
                 if gesture is not None:
@@ -168,6 +160,8 @@ class ConductorGame:
             renderer.render_starfield(screen, dt)
 
             if phase == "playing":
+                if frame is not None:
+                    render_skeleton(screen, frame.landmarks, w, h)
                 for note in choreography.get_active_notes():
                     renderer.render_target_ring(screen, note.target_type, note.target_x, note.target_y, note.ring_radius)
                     renderer.render_star_note(screen, note)
