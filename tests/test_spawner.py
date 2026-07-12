@@ -50,24 +50,10 @@ class TestSpawnFruits:
             assert 0 <= f.x <= 1280
             assert f.y >= 0
 
-    def test_golden_spawn_chance(self) -> None:
-        golden_count = 0
-        for _ in range(100):
-            wave = generate_wave(5)
-            fruits = spawn_fruits(wave, 1280, 720, False)
-            golden_count += sum(1 for f in fruits if f.type == FruitType.GOLDEN_WATERMELON)
-        assert golden_count > 0
-
-    def test_no_golden_when_already_spawned(self) -> None:
-        wave = generate_wave(5)
-        fruits = spawn_fruits(wave, 1280, 720, True)
-        golden = [f for f in fruits if f.type == FruitType.GOLDEN_WATERMELON]
-        assert len(golden) == 0
-
     def test_fruits_have_valid_types(self) -> None:
         wave = generate_wave(1)
         fruits = spawn_fruits(wave, 1280, 720, False)
-        valid_types = {FruitType.WATERMELON, FruitType.ORANGE, FruitType.APPLE, FruitType.BANANA, FruitType.GOLDEN_WATERMELON}
+        valid_types = {FruitType.WATERMELON, FruitType.CANTALOUPE, FruitType.APPLE, FruitType.PEAR, FruitType.BANANA}
         for f in fruits:
             assert f.type in valid_types
 

@@ -14,13 +14,13 @@ class TestFruitSlicingScore:
         pts = calculate_score(FruitType.WATERMELON, 0)
         assert pts == 10
 
-    def test_base_score_orange(self) -> None:
-        pts = calculate_score(FruitType.ORANGE, 0)
-        assert pts == 20
+    def test_base_score_cantaloupe(self) -> None:
+        pts = calculate_score(FruitType.CANTALOUPE, 0)
+        assert pts == 15
 
-    def test_base_score_golden(self) -> None:
-        pts = calculate_score(FruitType.GOLDEN_WATERMELON, 0)
-        assert pts == 50
+    def test_base_score_pear(self) -> None:
+        pts = calculate_score(FruitType.PEAR, 0)
+        assert pts == 25
 
     def test_combo_bonus_at_2(self) -> None:
         pts = calculate_score(FruitType.WATERMELON, 2)

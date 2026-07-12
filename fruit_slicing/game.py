@@ -218,6 +218,18 @@ class FruitSlicingGame:
                                     "color": f.type.color,
                                     "size": int(np.random.uniform(2, 6)),
                                 })
+                            if f.type.display_name == "watermelon":
+                                screen_h = screen.get_height()
+                                for _ in range(12):
+                                    particles.append({
+                                        "x": f.x + np.random.uniform(-50, 50),
+                                        "y": screen_h,
+                                        "vx": np.random.uniform(-4, 4),
+                                        "vy": np.random.uniform(-15, -8),
+                                        "life": 1.5,
+                                        "color": (220, 20, 60) if np.random.random() > 0.3 else (34, 139, 34),
+                                        "size": int(np.random.uniform(3, 7)),
+                                    })
                     for b in bombs:
                         if check_swipe_bomb(blade, b):
                             b.exploded = True

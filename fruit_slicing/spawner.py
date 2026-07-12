@@ -23,16 +23,15 @@ def generate_wave(wave_number: int) -> WaveConfig:
 
 
 _FRUIT_WEIGHTS = [
-    (FruitType.WATERMELON, 35),
-    (FruitType.ORANGE, 25),
-    (FruitType.APPLE, 25),
-    (FruitType.BANANA, 15),
+    (FruitType.WATERMELON, 30),
+    (FruitType.CANTALOUPE, 25),
+    (FruitType.APPLE, 20),
+    (FruitType.PEAR, 15),
+    (FruitType.BANANA, 10),
 ]
 
 
-def _pick_fruit_type(golden_chance: float, golden_spawned: bool) -> FruitType:
-    if not golden_spawned and random.random() < golden_chance:
-        return FruitType.GOLDEN_WATERMELON
+def _pick_fruit_type() -> FruitType:
     total = sum(w for _, w in _FRUIT_WEIGHTS)
     r = random.uniform(0, total)
     cumulative = 0
@@ -61,7 +60,7 @@ def spawn_fruits(
         angle = random.uniform(-0.8, 0.8)
         vx = speed * 0.3 * angle
         vy = -speed
-        fruit_type = _pick_fruit_type(wave_config.golden_chance, golden_spawned)
+        fruit_type = _pick_fruit_type()
         radius = random.uniform(25, 40)
         fruits.append(
             Fruit(

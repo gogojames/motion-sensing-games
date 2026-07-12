@@ -18,11 +18,11 @@ class GamePhase(Enum):
 class FruitType(Enum):
     """Fruit types with point values and display colours."""
 
-    WATERMELON = ("watermelon", 10, (34, 139, 34))
-    ORANGE = ("orange", 20, (255, 165, 0))
-    APPLE = ("apple", 15, (255, 0, 0))
-    BANANA = ("banana", 15, (255, 255, 0))
-    GOLDEN_WATERMELON = ("golden", 50, (255, 215, 0))
+    WATERMELON = ("watermelon", 10, (34, 139, 34))     # Forest green
+    CANTALOUPE = ("cantaloupe", 15, (255, 165, 0))      # Orange
+    APPLE = ("apple", 20, (220, 20, 60))                 # Crimson red
+    PEAR = ("pear", 25, (255, 215, 0))                   # Gold
+    BANANA = ("banana", 30, (255, 255, 0))               # Yellow
 
     def __init__(self, display_name: str, points: int, color: tuple[int, int, int]) -> None:
         self.display_name = display_name
